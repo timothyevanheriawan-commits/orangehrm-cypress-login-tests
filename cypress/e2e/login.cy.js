@@ -1,69 +1,67 @@
-describe('Feature: Login - OrangeHRM (opensource demo) - SC_LOGIN_01', () => {
-  const loginPath = '/web/index.php/auth/login';
+import LoginPage from '../support/pages/LoginPage';
+
+describe('Feature: Login - OrangeHRM (opensource demo) - SC_LOGIN_01 (POM)', () => {
   const validatePath = '/web/index.php/auth/validate';
   const resetPath = '/web/index.php/auth/requestPasswordResetCode';
 
   beforeEach(() => {
-    cy.visit(loginPath);
-    cy.get('input[name="username"]').should('exist');
-    cy.get('input[name="password"]').should('exist');
+    LoginPage.visit();
+    cy.fixture('users').as('users');
   });
 
-  it('TC-LOGIN-001 - Login dengan kredensial yang valid', () => {
+  it('TC-LOGIN-001 - Login dengan kredensial yang valid', function () {
     cy.intercept('POST', validatePath).as('postValidate');
 
-    cy.get('input[name="username"]').clear().type('Admin');
-    cy.get('input[name="password"]').clear().type('admin123');
-    cy.get('button[type="submit"]').click();
+    LoginPage.enterUsername(this.users.valid.username);
+    LoginPage.enterPassword(this.users.valid.password);
+    LoginPage.submit();
 
     cy.wait('@postValidate').then(({ response }) => {
       expect(response).to.exist;
       expect(response.statusCode).to.be.a('number');
+      expect(response.statusCode).to.be.within(200, 399);
     });
 
     cy.url().should('include', '/dashboard');
     cy.get('h6').contains(/Dashboard/i).should('exist');
   });
 
-  it('TC-LOGIN-002 - Login dengan password yang salah', () => {
+  it('TC-LOGIN-002 - Login dengan password yang salah (cek payload)', function () {
     cy.intercept('POST', validatePath, (req) => {
-      req.continue((res) => {
-      });
+      req.continue();
     }).as('postValidatePayload');
 
-    const wrongPassword = 'passwordSalah';
-    cy.get('input[name="username"]').clear().type('Admin');
-    cy.get('input[name="password"]').clear().type(wrongPassword);
-    cy.get('button[type="submit"]').click();
+    LoginPage.enterUsername(this.users.invalidPassword.username);
+    LoginPage.enterPassword(this.users.invalidPassword.password);
+    LoginPage.submit();
 
     cy.wait('@postValidatePayload').its('request.body').then((body) => {
       const bodyStr = typeof body === 'string' ? body : JSON.stringify(body);
-      expect(bodyStr).to.include('passwordSalah');
+      expect(bodyStr).to.include(this.users.invalidPassword.password);
     });
 
-    cy.contains('Invalid credentials').should('be.visible');
+    cy.contains(/Invalid credentials/i).should('be.visible');
     cy.url().should('include', '/auth/login');
   });
 
-  it('TC-LOGIN-003 - Login dengan username yang salah', () => {
+  it('TC-LOGIN-003 - Login dengan username yang salah (cek payload)', function () {
     cy.intercept('POST', validatePath).as('postValidateUserCheck');
 
-    cy.get('input[name="username"]').clear().type('Administrator');
-    cy.get('input[name="password"]').clear().type('admin123');
-    cy.get('button[type="submit"]').click();
+    LoginPage.enterUsername(this.users.invalidUsername.username);
+    LoginPage.enterPassword(this.users.invalidUsername.password);
+    LoginPage.submit();
 
     cy.wait('@postValidateUserCheck').its('request.body').then((body) => {
       const bodyStr = typeof body === 'string' ? body : JSON.stringify(body);
-      expect(bodyStr).to.include('Administrator');
+      expect(bodyStr).to.include(this.users.invalidUsername.username);
     });
 
-    cy.contains('Invalid credentials').should('be.visible');
+    cy.contains(/Invalid credentials/i).should('be.visible');
     cy.url().should('include', '/auth/login');
   });
 
-  it('TC-LOGIN-004 - Login dengan username dan password kosong', () => {
+  it('TC-LOGIN-004 - Login dengan username dan password kosong (validasi front-end, endpoint tidak dipanggil)', function () {
     let validateCalled = false;
-
     cy.intercept('POST', validatePath, (req) => {
       validateCalled = true;
       req.continue();
@@ -71,9 +69,9 @@ describe('Feature: Login - OrangeHRM (opensource demo) - SC_LOGIN_01', () => {
 
     cy.get('input[name="username"]').clear();
     cy.get('input[name="password"]').clear();
-    cy.get('button[type="submit"]').click();
+    LoginPage.submit();
 
-    cy.contains('Required').should('be.visible');
+    cy.contains(/\bRequired\b/i).should('be.visible');
 
     cy.wait(500);
 
@@ -87,7 +85,7 @@ describe('Feature: Login - OrangeHRM (opensource demo) - SC_LOGIN_01', () => {
   it('TC-LOGIN-005 - Mengecek fungsionalitas link "Forgot your password?"', () => {
     cy.intercept('GET', resetPath).as('resetPage');
 
-    cy.contains('Forgot your password?').should('be.visible').click();
+    LoginPage.clickForgotPassword();
 
     cy.wait('@resetPage').then(({ response }) => {
       expect(response).to.exist;
